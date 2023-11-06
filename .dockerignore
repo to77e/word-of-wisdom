@@ -1,0 +1,13 @@
+.DS_Store/
+.idea/
+.git*
+
+bin/
+.dockerignore
+.golangci.yaml
+docker-compose.yaml
+build/server/Dockerfile
+LICENSE
+Makefile
+README.md
+

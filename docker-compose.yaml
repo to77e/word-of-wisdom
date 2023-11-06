@@ -1,0 +1,20 @@
+version: '3.9'
+
+services:
+  server:
+    network_mode: "host"
+    build:
+      context: .
+      dockerfile: build/server/Dockerfile
+    restart: on-failure
+
+
+  client:
+    network_mode: "host"
+    build:
+      context: .
+      dockerfile: build/client/Dockerfile
+    depends_on:
+      server:
+        condition: service_started
+    restart: on-failure
