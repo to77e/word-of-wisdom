@@ -27,6 +27,7 @@ func main() {
 	for i := 1; i <= defaultClients; i++ {
 		go func(n int) {
 			start := time.Now()
+
 			tcpClient, err := client.New(defaultAddress)
 			if err != nil {
 				slog.With("error", err.Error()).Error("new client")

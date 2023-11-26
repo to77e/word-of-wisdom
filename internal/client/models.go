@@ -4,6 +4,9 @@ import (
 	_ "encoding/json"
 )
 
+// MessageType describes the type of message
+// and is used to validate the message type in the request
+// and is necessary for distinguish a regular message from an error message
 type MessageType int
 
 const (

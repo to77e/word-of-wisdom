@@ -3,10 +3,9 @@ package proofofwork
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"io"
-
-	"github.com/to77e/word-of-wisdom/internal/scrypt"
 )
 
 const (
@@ -50,11 +49,8 @@ func (p *ProofOfWork) SetSolution(solution []byte) {
 }
 
 func (p *ProofOfWork) VerifySolution() (bool, error) {
-	hash, err := scrypt.GenerateHash(p.solution, p.challenge)
-	if err != nil {
-		return false, fmt.Errorf("scrypt key: %w\n", err)
-	}
-	return bytes.HasPrefix(hash, bytes.Repeat([]byte{0}, defaultDifficulty)), nil
+	hash := sha256.Sum256(p.solution)
+	return bytes.HasPrefix(hash[:], bytes.Repeat([]byte{0}, defaultDifficulty)), nil
 }
 
 func (p *ProofOfWork) ComputeSolution() error {
@@ -62,13 +58,8 @@ func (p *ProofOfWork) ComputeSolution() error {
 		if _, err := rand.Read(p.solution); err != nil {
 			return fmt.Errorf("read solution: %w\n", err)
 		}
-
-		hash, err := scrypt.GenerateHash(p.solution, p.challenge)
-		if err != nil {
-			return fmt.Errorf("generate hash: %w\n", err)
-		}
-
-		if bytes.HasPrefix(hash, bytes.Repeat([]byte{0}, defaultDifficulty)) {
+		hash := sha256.Sum256(p.solution)
+		if bytes.HasPrefix(hash[:], bytes.Repeat([]byte{0}, defaultDifficulty)) {
 			return nil
 		}
 	}
