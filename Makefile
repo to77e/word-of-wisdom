@@ -15,9 +15,24 @@ build:
 generate:
 	go generate ./...
 
+
+
+.PHONY: test_unit
+test_unit:
+	go test -v -timeout 5s -count 1 -race -run Unit ./...
+
+.PHONY: test_unit_multi
+test_unit_multi:
+	go test -v -timeout 5s -count 30 -race -run Unit ./...
+
+.PHONY: test_integration
+test_integration:
+	go test -v -timeout 10s -count 1 -race -run Integration ./...
+
 .PHONY: test
 test:
-	go test -v -timeout 5s -count 1 -race -run Unit ./...
+	go test -v -count 1 -race ./...
+
 
 
 .PHONY: install-lint

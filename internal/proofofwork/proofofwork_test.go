@@ -56,9 +56,8 @@ func TestUnit_VerifySolution(t *testing.T) {
 			p.challenge = tt.fields.challenge(p)
 			p.solution = tt.fields.solution(p)
 
-			got, err := p.VerifySolution()
+			got := p.VerifySolution()
 			assert.Equalf(t, tt.want, got, "VerifySolution() = %v, want %v", got, tt.want)
-			tt.wantErr(t, err, fmt.Sprintf("VerifySolution() error = %v", err))
 		})
 	}
 }

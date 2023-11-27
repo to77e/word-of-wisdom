@@ -9,7 +9,7 @@ This application implements a TCP server designed to provide inspirational quote
 
 ## Proof of Work (PoW) Algorithm
 
-The chosen PoW algorithm is [scrypt](https://en.wikipedia.org/wiki/Scrypt), known for its memory-intensive nature. This makes it more resistant to brute-force attacks and provides a higher level of security.
+The chosen PoW algorithm is (SHA-256)[https://en.wikipedia.org/wiki/SHA-2] due to its robustness and widespread adoption as a cryptographic hash function. This algorithm provides a strong foundation for securing the blockchain network by offering computational efficiency and a high level of cryptographic security.
 
 ## Server Usage
 

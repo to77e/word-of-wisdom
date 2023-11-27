@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -14,9 +15,10 @@ import (
 )
 
 const (
-	numberOfWorkers   = 2
-	defaultBufferSize = 128
-	defaultTimeout    = time.Second
+	numberOfWorkers          = 2
+	defaultBufferSize        = 128
+	defaultTimeout           = time.Second
+	defaultConnectionTimeout = time.Second * 10
 )
 
 type Server struct {
@@ -31,6 +33,7 @@ func New(address string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tcp listener: %s\n", err.Error())
 	}
+
 	slog.With("address", address).Info("tcp listen")
 
 	return &Server{
@@ -79,6 +82,10 @@ func (s *Server) acceptConnections() {
 			conn, err := s.listener.Accept()
 			if err != nil {
 				slog.With("error", err.Error()).Error("accept tcp connection")
+				return
+			}
+			if err = conn.SetDeadline(time.Now().Add(defaultConnectionTimeout)); err != nil {
+				slog.With("error", err.Error()).Error("set deadline")
 				return
 			}
 			s.connection <- conn
@@ -138,13 +145,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 	// 6. verify
 	pow.SetSolution(solution)
-	isVerified, err := pow.VerifySolution()
-	if err != nil {
-		s.HandleError(conn, err, "verify solution")
-		return
-	}
+	isVerified := pow.VerifySolution()
 	if !isVerified {
-		s.HandleError(conn, err, "solution is not verified")
+		s.HandleError(conn, errors.New("solution is not valid"), "verify solution")
 		return
 	}
 

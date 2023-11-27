@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"sync"
@@ -14,7 +15,7 @@ import (
 const (
 	logLevel       = slog.LevelInfo
 	defaultAddress = "localhost:11001"
-	defaultClients = 10
+	defaultClients = 100
 )
 
 func main() {
@@ -71,7 +72,7 @@ func main() {
 				return
 			}
 
-			slog.Info(result)
+			fmt.Printf("%s\n", result)
 			slog.With("number", n, "seconds", time.Since(start).Seconds()).Debug("time elapsed")
 		}(i)
 	}

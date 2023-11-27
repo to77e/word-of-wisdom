@@ -48,9 +48,9 @@ func (p *ProofOfWork) SetSolution(solution []byte) {
 	p.solution = solution
 }
 
-func (p *ProofOfWork) VerifySolution() (bool, error) {
+func (p *ProofOfWork) VerifySolution() bool {
 	hash := sha256.Sum256(p.solution)
-	return bytes.HasPrefix(hash[:], bytes.Repeat([]byte{0}, defaultDifficulty)), nil
+	return bytes.HasPrefix(hash[:], bytes.Repeat([]byte{0}, defaultDifficulty))
 }
 
 func (p *ProofOfWork) ComputeSolution() error {
