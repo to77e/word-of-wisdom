@@ -19,7 +19,16 @@ const (
 	defaultBufferSize        = 128
 	defaultTimeout           = time.Second
 	defaultConnectionTimeout = time.Second * 10
+	defaultDifficulty        = 1
 )
+
+type ProofOfWorker interface {
+	GenerateChallenge() error
+	GetChallenge() []byte
+	SetSolution(solution []byte)
+	GetDifficulty() int
+	VerifySolution() bool
+}
 
 type Server struct {
 	listener   net.Listener
@@ -100,12 +109,13 @@ func (s *Server) handleConnections() {
 		case <-s.quit:
 			return
 		case conn := <-s.connection:
-			go s.handleConnection(conn)
+			pow := proofofwork.New(defaultDifficulty)
+			go s.handleConnection(conn, pow)
 		}
 	}
 }
 
-func (s *Server) handleConnection(conn net.Conn) {
+func (s *Server) handleConnection(conn net.Conn, pow ProofOfWorker) {
 	defer func() {
 		if err := conn.Close(); err != nil {
 			slog.With("error", err.Error()).Error("close tcp connection")
@@ -118,28 +128,27 @@ func (s *Server) handleConnection(conn net.Conn) {
 	// with the challenge-response protocol
 
 	// 1. request service
-	if err := s.ReadChallengeRequest(conn); err != nil {
-		s.HandleError(conn, err, "read challenge request")
+	if err := s.readChallengeRequest(conn); err != nil {
+		s.handleError(conn, err, "read challenge request")
 		return
 	}
 
 	// 2. choose
-	pow := proofofwork.New()
 	if err := pow.GenerateChallenge(); err != nil {
-		s.HandleError(conn, err, "generate challenge")
+		s.handleError(conn, err, "generate challenge")
 		return
 	}
 
 	// 3. challenge
-	if err := s.WriteChallengeResponse(conn, pow.GetChallenge()); err != nil {
-		s.HandleError(conn, err, "write challenge response")
+	if err := s.writeChallengeResponse(conn, pow.GetChallenge(), pow.GetDifficulty()); err != nil {
+		s.handleError(conn, err, "write challenge response")
 		return
 	}
 
 	// 5. response
-	solution, err := s.ReadSolutionRequest(conn)
+	solution, err := s.readSolutionRequest(conn)
 	if err != nil {
-		s.HandleError(conn, err, "read solution request")
+		s.handleError(conn, err, "read solution request")
 		return
 	}
 
@@ -147,34 +156,35 @@ func (s *Server) handleConnection(conn net.Conn) {
 	pow.SetSolution(solution)
 	isVerified := pow.VerifySolution()
 	if !isVerified {
-		s.HandleError(conn, errors.New("solution is not valid"), "verify solution")
+		s.handleError(conn, errors.New("solution is not valid"), "verify solution")
 		return
 	}
 
-	solutionResponse := &SolutionMessageResponse{
-		Type:   SolutionResponse,
-		Result: wordofwisdom.GetRandomQuote(),
+	solutionResponse := &message.SolutionMessageResponse{
+		Type:  message.SolutionResponse,
+		Quote: wordofwisdom.GetRandomQuote(),
 	}
 
 	// 7. grant service
 	if err = s.sendResponse(conn, solutionResponse); err != nil {
-		s.HandleError(conn, err, "send response")
+		s.handleError(conn, err, "send response")
 		return
 	}
 }
 
-func (s *Server) ReadChallengeRequest(conn net.Conn) error {
-	challengeRequest := &ChallengeMessageRequest{}
+func (s *Server) readChallengeRequest(conn net.Conn) error {
+	challengeRequest := &message.ChallengeMessageRequest{}
 	if err := s.getRequest(conn, challengeRequest); err != nil {
 		return fmt.Errorf("get request: %w\n", err)
 	}
 	return nil
 }
 
-func (s *Server) WriteChallengeResponse(conn net.Conn, challenge []byte) error {
-	challengeResponse := &ChallengeMessageResponse{
-		Type:      ChallengeResponse,
-		Challenge: challenge,
+func (s *Server) writeChallengeResponse(conn net.Conn, challenge []byte, difficulty int) error {
+	challengeResponse := &message.ChallengeMessageResponse{
+		Type:       message.ChallengeResponse,
+		Challenge:  challenge,
+		Difficulty: difficulty,
 	}
 	if err := s.sendResponse(conn, challengeResponse); err != nil {
 		return fmt.Errorf("send response: %w\n", err)
@@ -182,8 +192,8 @@ func (s *Server) WriteChallengeResponse(conn net.Conn, challenge []byte) error {
 	return nil
 }
 
-func (s *Server) ReadSolutionRequest(conn net.Conn) ([]byte, error) {
-	solutionRequest := &SolutionMessageRequest{
+func (s *Server) readSolutionRequest(conn net.Conn) ([]byte, error) {
+	solutionRequest := &message.SolutionMessageRequest{
 		Solution: make([]byte, 0),
 	}
 	if err := s.getRequest(conn, solutionRequest); err != nil {
@@ -192,15 +202,15 @@ func (s *Server) ReadSolutionRequest(conn net.Conn) ([]byte, error) {
 	return solutionRequest.Solution, nil
 }
 
-func (s *Server) HandleError(conn net.Conn, err error, message string) {
-	errorMessage := &ErrorMessage{
-		Type:         Error,
-		ErrorMessage: message,
+func (s *Server) handleError(conn net.Conn, err error, content string) {
+	errorMessage := &message.ErrorMessage{
+		Type:         message.Error,
+		ErrorMessage: content,
 	}
 	if errResp := s.sendResponse(conn, errorMessage); errResp != nil {
 		slog.With("error", errResp.Error()).Error("send error response")
 	}
-	slog.With("error", err.Error()).Error(message)
+	slog.With("error", err.Error()).Error(content)
 }
 
 func (s *Server) getRequest(conn net.Conn, req interface{}) error {

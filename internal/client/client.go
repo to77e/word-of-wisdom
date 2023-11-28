@@ -18,6 +18,11 @@ type Client struct {
 	connection net.Conn
 }
 
+type Challenge struct {
+	Content    []byte
+	Difficulty int
+}
+
 func New(address string) (*Client, error) {
 	conn, err := net.Dial("tcp", address)
 	if err != nil {
@@ -38,8 +43,8 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) WriteChallengeRequest() error {
-	challengeRequest := &ChallengeMessageRequest{
-		Type:    ChallengeRequest,
+	challengeRequest := &message.ChallengeMessageRequest{
+		Type:    message.ChallengeRequest,
 		Content: "start",
 	}
 	if err := c.sendRequest(challengeRequest); err != nil {
@@ -49,24 +54,27 @@ func (c *Client) WriteChallengeRequest() error {
 	return nil
 }
 
-func (c *Client) ReadChallengeResponse() ([]byte, error) {
-	data := &ChallengeMessageResponse{
+func (c *Client) ReadChallengeResponse() (*Challenge, error) {
+	data := &message.ChallengeMessageResponse{
 		Challenge: make([]byte, 0),
 	}
 	if err := c.getResponse(data); err != nil {
 		return nil, fmt.Errorf("get challenge response: %w\n", err)
 	}
 
-	if data.Type == Error {
+	if data.Type == message.Error {
 		return nil, fmt.Errorf("error message: %s\n", data.ErrorMessage)
 	}
 
-	return data.Challenge, nil
+	return &Challenge{
+		Content:    data.Challenge,
+		Difficulty: data.Difficulty,
+	}, nil
 }
 
 func (c *Client) WriteSolutionRequest(solution []byte) error {
-	solutionRequest := &SolutionMessageRequest{
-		Type:     SolutionRequest,
+	solutionRequest := &message.SolutionMessageRequest{
+		Type:     message.SolutionRequest,
 		Solution: solution,
 	}
 	if err := c.sendRequest(solutionRequest); err != nil {
@@ -77,16 +85,16 @@ func (c *Client) WriteSolutionRequest(solution []byte) error {
 }
 
 func (c *Client) ReadSolutionResponse() (string, error) {
-	data := &SolutionMessageResponse{}
+	data := &message.SolutionMessageResponse{}
 	if err := c.getResponse(data); err != nil {
 		return "", fmt.Errorf("get solution response: %w\n", err)
 	}
 
-	if data.Type == Error {
+	if data.Type == message.Error {
 		return "", fmt.Errorf("error message: %s\n", data.ErrorMessage)
 	}
 
-	return data.Result, nil
+	return data.Quote, nil
 }
 
 func (c *Client) getResponse(resp interface{}) error {

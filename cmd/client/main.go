@@ -54,8 +54,8 @@ func main() {
 			}
 
 			// 4. solve
-			pow := proofofwork.New()
-			pow.SetChallenge(challenge)
+			pow := proofofwork.New(challenge.Difficulty)
+			pow.SetChallenge(challenge.Content)
 			if err = pow.ComputeSolution(); err != nil {
 				slog.With("error", err.Error()).Error("compute solution")
 				return

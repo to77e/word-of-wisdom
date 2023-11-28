@@ -36,6 +36,10 @@ func (s *SuiteServer) TearDownSuite() {
 }
 
 func (s *SuiteServer) TestServer() {
+	const (
+		difficulty = 1
+	)
+
 	t := s.T()
 	t.Parallel()
 
@@ -50,8 +54,8 @@ func (s *SuiteServer) TestServer() {
 		challenge, err := tcpClient.ReadChallengeResponse()
 		assert.NoError(t, err)
 
-		pow := proofofwork.New()
-		pow.SetChallenge(challenge)
+		pow := proofofwork.New(challenge.Difficulty)
+		pow.SetChallenge(challenge.Content)
 
 		err = pow.ComputeSolution()
 		assert.NoError(t, err)
@@ -75,8 +79,8 @@ func (s *SuiteServer) TestServer() {
 		challenge, err := tcpClient.ReadChallengeResponse()
 		assert.NoError(t, err)
 
-		pow := proofofwork.New()
-		pow.SetChallenge(challenge)
+		pow := proofofwork.New(challenge.Difficulty)
+		pow.SetChallenge(challenge.Content)
 		pow.SetSolution([]byte("wrong solution"))
 		err = tcpClient.WriteSolutionRequest(pow.GetSolution())
 		assert.NoError(t, err)
@@ -91,7 +95,7 @@ func (s *SuiteServer) TestServer() {
 		assert.NoError(t, err)
 		defer tcpClient.Close() //nolint: errcheck
 
-		pow := proofofwork.New()
+		pow := proofofwork.New(difficulty)
 		pow.SetChallenge([]byte("wrong challenge"))
 
 		err = pow.ComputeSolution()
@@ -116,8 +120,8 @@ func (s *SuiteServer) TestServer() {
 		challenge, err := tcpClient.ReadChallengeResponse()
 		assert.NoError(t, err)
 
-		pow := proofofwork.New()
-		pow.SetChallenge(challenge)
+		pow := proofofwork.New(challenge.Difficulty)
+		pow.SetChallenge(challenge.Content)
 
 		err = pow.ComputeSolution()
 		assert.NoError(t, err)

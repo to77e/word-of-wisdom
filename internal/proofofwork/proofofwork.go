@@ -9,19 +9,20 @@ import (
 )
 
 const (
-	defaultDifficulty = 1
-	defaultBufferSize = 32
+	bufferSize = 32
 )
 
 type ProofOfWork struct {
-	challenge []byte
-	solution  []byte
+	challenge  []byte
+	solution   []byte
+	difficulty int
 }
 
-func New() *ProofOfWork {
+func New(difficulty int) *ProofOfWork {
 	return &ProofOfWork{
-		challenge: make([]byte, defaultBufferSize),
-		solution:  make([]byte, defaultBufferSize),
+		challenge:  make([]byte, bufferSize),
+		solution:   make([]byte, bufferSize),
+		difficulty: difficulty,
 	}
 }
 
@@ -48,9 +49,13 @@ func (p *ProofOfWork) SetSolution(solution []byte) {
 	p.solution = solution
 }
 
+func (p *ProofOfWork) GetDifficulty() int {
+	return p.difficulty
+}
+
 func (p *ProofOfWork) VerifySolution() bool {
 	hash := sha256.Sum256(p.solution)
-	return bytes.HasPrefix(hash[:], bytes.Repeat([]byte{0}, defaultDifficulty))
+	return bytes.HasPrefix(hash[:], bytes.Repeat([]byte{0}, p.difficulty))
 }
 
 func (p *ProofOfWork) ComputeSolution() error {
@@ -59,7 +64,7 @@ func (p *ProofOfWork) ComputeSolution() error {
 			return fmt.Errorf("read solution: %w\n", err)
 		}
 		hash := sha256.Sum256(p.solution)
-		if bytes.HasPrefix(hash[:], bytes.Repeat([]byte{0}, defaultDifficulty)) {
+		if bytes.HasPrefix(hash[:], bytes.Repeat([]byte{0}, p.difficulty)) {
 			return nil
 		}
 	}

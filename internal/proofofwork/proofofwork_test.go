@@ -8,6 +8,9 @@ import (
 )
 
 func TestUnit_VerifySolution(t *testing.T) {
+	const (
+		difficulty = 1
+	)
 	type fields struct {
 		challenge func(*ProofOfWork) []byte
 		solution  func(*ProofOfWork) []byte
@@ -52,7 +55,7 @@ func TestUnit_VerifySolution(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := New()
+			p := New(difficulty)
 			p.challenge = tt.fields.challenge(p)
 			p.solution = tt.fields.solution(p)
 
