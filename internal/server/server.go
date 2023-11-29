@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,16 +10,15 @@ import (
 	"time"
 
 	"github.com/to77e/word-of-wisdom/internal/config"
-	"github.com/to77e/word-of-wisdom/internal/message"
+	"github.com/to77e/word-of-wisdom/internal/messages"
 	"github.com/to77e/word-of-wisdom/internal/proofofwork"
 	"github.com/to77e/word-of-wisdom/internal/wordofwisdom"
 	"github.com/to77e/word-of-wisdom/tools/validator"
 )
 
 const (
-	numberOfWorkers   = 2
-	defaultBufferSize = 128
-	defaultTimeout    = time.Second
+	numberOfWorkers = 2
+	defaultTimeout  = time.Second
 )
 
 type ProofOfWorker interface {
@@ -30,10 +30,10 @@ type ProofOfWorker interface {
 }
 
 type Server struct {
-	listener   net.Listener
-	quit       chan struct{}
-	wg         sync.WaitGroup
-	connection chan net.Conn
+	listener    net.Listener
+	quit        chan struct{}
+	wg          sync.WaitGroup
+	connections chan net.Conn
 }
 
 func New(address string) (*Server, error) {
@@ -45,9 +45,9 @@ func New(address string) (*Server, error) {
 	slog.With("address", address).Info("tcp listen")
 
 	return &Server{
-		listener:   listener,
-		quit:       make(chan struct{}),
-		connection: make(chan net.Conn),
+		listener:    listener,
+		quit:        make(chan struct{}),
+		connections: make(chan net.Conn),
 	}, nil
 }
 
@@ -98,7 +98,7 @@ func (s *Server) acceptConnections(cfg config.Server) {
 				slog.With("error", err.Error()).Error("set deadline")
 				return
 			}
-			s.connection <- conn
+			s.connections <- conn
 		}
 	}
 }
@@ -109,9 +109,8 @@ func (s *Server) handleConnections(cfg config.ProofOfWork) {
 		select {
 		case <-s.quit:
 			return
-		case conn := <-s.connection:
-			pow := proofofwork.New(cfg.Difficulty)
-			go s.handleConnection(conn, pow)
+		case conn := <-s.connections:
+			go s.handleConnection(conn, proofofwork.New(cfg.Difficulty))
 		}
 	}
 }
@@ -155,18 +154,16 @@ func (s *Server) handleConnection(conn net.Conn, pow ProofOfWorker) {
 
 	// 6. verify
 	pow.SetSolution(solution)
-	isVerified := pow.VerifySolution()
-	if !isVerified {
+	if !pow.VerifySolution() {
 		s.handleError(conn, errors.New("solution is not valid"), "verify solution")
 		return
 	}
 
-	solutionResponse := &message.SolutionMessageResponse{
-		Type:  message.SolutionResponse,
+	// 7. grant service
+	solutionResponse := &messages.SolutionMessageResponse{
+		Type:  messages.SolutionResponse,
 		Quote: wordofwisdom.GetRandomQuote(),
 	}
-
-	// 7. grant service
 	if err = s.sendResponse(conn, solutionResponse); err != nil {
 		s.handleError(conn, err, "send response")
 		return
@@ -174,7 +171,7 @@ func (s *Server) handleConnection(conn net.Conn, pow ProofOfWorker) {
 }
 
 func (s *Server) readChallengeRequest(conn net.Conn) error {
-	challengeRequest := &message.ChallengeMessageRequest{}
+	challengeRequest := &messages.ChallengeMessageRequest{}
 	if err := s.getRequest(conn, challengeRequest); err != nil {
 		return fmt.Errorf("get request: %w\n", err)
 	}
@@ -182,8 +179,8 @@ func (s *Server) readChallengeRequest(conn net.Conn) error {
 }
 
 func (s *Server) writeChallengeResponse(conn net.Conn, challenge []byte, difficulty int) error {
-	challengeResponse := &message.ChallengeMessageResponse{
-		Type:       message.ChallengeResponse,
+	challengeResponse := &messages.ChallengeMessageResponse{
+		Type:       messages.ChallengeResponse,
 		Challenge:  challenge,
 		Difficulty: difficulty,
 	}
@@ -194,7 +191,7 @@ func (s *Server) writeChallengeResponse(conn net.Conn, challenge []byte, difficu
 }
 
 func (s *Server) readSolutionRequest(conn net.Conn) ([]byte, error) {
-	solutionRequest := &message.SolutionMessageRequest{
+	solutionRequest := &messages.SolutionMessageRequest{
 		Solution: make([]byte, 0),
 	}
 	if err := s.getRequest(conn, solutionRequest); err != nil {
@@ -204,8 +201,8 @@ func (s *Server) readSolutionRequest(conn net.Conn) ([]byte, error) {
 }
 
 func (s *Server) handleError(conn net.Conn, err error, content string) {
-	errorMessage := &message.ErrorMessage{
-		Type:         message.Error,
+	errorMessage := &messages.ErrorMessage{
+		Type:         messages.Error,
 		ErrorMessage: content,
 	}
 	if errResp := s.sendResponse(conn, errorMessage); errResp != nil {
@@ -215,31 +212,25 @@ func (s *Server) handleError(conn net.Conn, err error, content string) {
 }
 
 func (s *Server) getRequest(conn net.Conn, req interface{}) error {
-	// todo: dynamic buffer size
-	buf := make([]byte, defaultBufferSize)
-	n, err := conn.Read(buf)
-	if err != nil {
-		return fmt.Errorf("read tcp connection: %w\n", err)
+	decoder := json.NewDecoder(conn)
+	if err := decoder.Decode(req); err != nil {
+		return fmt.Errorf("decode request: %w\n", err)
 	}
-	slog.With("bytes", n, "remote_address", conn.RemoteAddr().String()).Info("tcp connection")
 
-	m := message.New(buf[:n:n], validator.GetInstance())
-	if err = m.UnmarshalData(req); err != nil {
-		return fmt.Errorf("unmarshal data: %w\n", err)
+	if err := validator.GetInstance().Struct(req); err != nil {
+		return fmt.Errorf("validate data: %w\n", err)
 	}
+
+	slog.With("remote_address", conn.RemoteAddr().String()).Info("tcp connection")
 
 	return nil
 }
 
 func (s *Server) sendResponse(conn net.Conn, data interface{}) error {
-	m := message.New(nil, nil)
-	if err := m.MarshalData(data); err != nil {
-		return fmt.Errorf("marshal data: %w\n", err)
+	encoder := json.NewEncoder(conn)
+	if err := encoder.Encode(data); err != nil {
+		return fmt.Errorf("encode data: %w\n", err)
 	}
-	n, err := conn.Write(m.GetData())
-	if err != nil {
-		return fmt.Errorf("write tcp connection: %w\n", err)
-	}
-	slog.With("bytes", n, "remote_address", conn.RemoteAddr().String()).Info("tcp connection wrote")
+	slog.With("remote_address", conn.RemoteAddr().String()).Info("tcp connection wrote")
 	return nil
 }

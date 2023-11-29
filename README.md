@@ -1,7 +1,6 @@
 # word-of-wisdom
 
-This application implements a TCP server designed to provide inspirational quotes from the "Word of Wisdom" book. The server is protected from potential DDOS attacks using the Proof of Work (PoW) consensus mechanism. This ensures that clients must perform computational work before gaining access to the server.
-
+This application implements a TCP server designed to provide inspirational quotes from the "Word of Wisdom" book. The server is protected from potential DDOS attacks using the Proof of Work (PoW) consensus mechanism, ensuring that clients must perform computational work before gaining access to the server. Additionally, the server employs a challenge-response protocol to further bolster its security measures.
 ## Features
 
 - TCP server with PoW protection against DDOS attacks.

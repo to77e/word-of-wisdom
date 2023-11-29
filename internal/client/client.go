@@ -1,17 +1,12 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 
-	"github.com/to77e/word-of-wisdom/internal/message"
+	"github.com/to77e/word-of-wisdom/internal/messages"
 	"github.com/to77e/word-of-wisdom/tools/validator"
-
-	_ "github.com/to77e/word-of-wisdom/internal/message"
-)
-
-const (
-	defaultBufferSize = 1024
 )
 
 type Client struct {
@@ -43,8 +38,8 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) WriteChallengeRequest() error {
-	challengeRequest := &message.ChallengeMessageRequest{
-		Type:    message.ChallengeRequest,
+	challengeRequest := &messages.ChallengeMessageRequest{
+		Type:    messages.ChallengeRequest,
 		Content: "start",
 	}
 	if err := c.sendRequest(challengeRequest); err != nil {
@@ -55,15 +50,15 @@ func (c *Client) WriteChallengeRequest() error {
 }
 
 func (c *Client) ReadChallengeResponse() (*Challenge, error) {
-	data := &message.ChallengeMessageResponse{
+	data := &messages.ChallengeMessageResponse{
 		Challenge: make([]byte, 0),
 	}
 	if err := c.getResponse(data); err != nil {
 		return nil, fmt.Errorf("get challenge response: %w\n", err)
 	}
 
-	if data.Type == message.Error {
-		return nil, fmt.Errorf("error message: %s\n", data.ErrorMessage)
+	if data.Type == messages.Error {
+		return nil, fmt.Errorf("error messages: %s\n", data.ErrorMessage)
 	}
 
 	return &Challenge{
@@ -73,8 +68,8 @@ func (c *Client) ReadChallengeResponse() (*Challenge, error) {
 }
 
 func (c *Client) WriteSolutionRequest(solution []byte) error {
-	solutionRequest := &message.SolutionMessageRequest{
-		Type:     message.SolutionRequest,
+	solutionRequest := &messages.SolutionMessageRequest{
+		Type:     messages.SolutionRequest,
 		Solution: solution,
 	}
 	if err := c.sendRequest(solutionRequest); err != nil {
@@ -85,43 +80,35 @@ func (c *Client) WriteSolutionRequest(solution []byte) error {
 }
 
 func (c *Client) ReadSolutionResponse() (string, error) {
-	data := &message.SolutionMessageResponse{}
+	data := &messages.SolutionMessageResponse{}
 	if err := c.getResponse(data); err != nil {
 		return "", fmt.Errorf("get solution response: %w\n", err)
 	}
 
-	if data.Type == message.Error {
-		return "", fmt.Errorf("error message: %s\n", data.ErrorMessage)
+	if data.Type == messages.Error {
+		return "", fmt.Errorf("error messages: %s\n", data.ErrorMessage)
 	}
 
 	return data.Quote, nil
 }
 
 func (c *Client) getResponse(resp interface{}) error {
-	// todo: dynamic buffer size
-	buf := make([]byte, defaultBufferSize)
-	n, err := c.connection.Read(buf)
-	if err != nil {
-		return fmt.Errorf("read tcp connection: %w\n", err)
+	decoder := json.NewDecoder(c.connection)
+	if err := decoder.Decode(resp); err != nil {
+		return fmt.Errorf("decode response: %w\n", err)
 	}
 
-	m := message.New(buf[:n:n], validator.GetInstance())
-	if err = m.UnmarshalData(resp); err != nil {
-		return fmt.Errorf("unmarshal data: %w\n", err)
+	if err := validator.GetInstance().Struct(resp); err != nil {
+		return fmt.Errorf("validate data: %w\n", err)
 	}
 
 	return nil
 }
 
 func (c *Client) sendRequest(data interface{}) error {
-	m := message.New(nil, nil)
-
-	if err := m.MarshalData(data); err != nil {
-		return fmt.Errorf("marshal data: %w\n", err)
-	}
-
-	if _, err := c.connection.Write(m.GetData()); err != nil {
-		return fmt.Errorf("write tcp connection: %w\n", err)
+	encoder := json.NewEncoder(c.connection)
+	if err := encoder.Encode(data); err != nil {
+		return fmt.Errorf("encode data: %w\n", err)
 	}
 
 	return nil
