@@ -1,30 +1,47 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/to77e/word-of-wisdom/internal/config"
 	"github.com/to77e/word-of-wisdom/internal/server"
 	"github.com/to77e/word-of-wisdom/tools/validator"
 )
 
 const (
-	defaultAddress = "localhost:11001"
-	logLevel       = slog.LevelInfo
+	configPath = "config.yaml"
 )
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+	if err := config.ReadFile(configPath); err != nil {
+		slog.With("error", err.Error()).Error("init configuration")
+		os.Exit(1)
+	}
 
-	tcpServer, err := server.New(defaultAddress)
+	cfg := config.GetInstance()
+
+	validator.New()
+
+	slog.SetDefault(
+		slog.New(
+			slog.NewJSONHandler(
+				os.Stdout,
+				&slog.HandlerOptions{
+					Level: slog.Level(cfg.Project.LogLevel),
+				},
+			),
+		),
+	)
+
+	tcpServer, err := server.New(fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port))
 	if err != nil {
 		slog.With("error", err.Error()).Error("new tcp server")
 		return
 	}
-
-	validator.New()
 
 	tcpServer.Start()
 	done := make(chan os.Signal, 1)

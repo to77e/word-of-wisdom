@@ -1,0 +1,11 @@
+project:
+  name: word of wisdom
+  logLevel: 0
+
+server:
+  address: localhost
+  port: 11001
+  connectionTimeout: 10s
+
+proofOfWork:
+  difficulty: 1

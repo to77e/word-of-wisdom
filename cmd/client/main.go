@@ -8,20 +8,36 @@ import (
 	"time"
 
 	"github.com/to77e/word-of-wisdom/internal/client"
+	"github.com/to77e/word-of-wisdom/internal/config"
 	"github.com/to77e/word-of-wisdom/internal/proofofwork"
 	"github.com/to77e/word-of-wisdom/tools/validator"
 )
 
 const (
-	logLevel       = slog.LevelInfo
-	defaultAddress = "localhost:11001"
+	configPath     = "config.yaml"
 	defaultClients = 100
 )
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+	if err := config.ReadFile(configPath); err != nil {
+		slog.With("error", err.Error()).Error("init configuration")
+		os.Exit(1)
+	}
+
+	cfg := config.GetInstance()
 
 	validator.New()
+
+	slog.SetDefault(
+		slog.New(
+			slog.NewJSONHandler(
+				os.Stdout,
+				&slog.HandlerOptions{
+					Level: slog.Level(cfg.Project.LogLevel),
+				},
+			),
+		),
+	)
 
 	wg := sync.WaitGroup{}
 	wg.Add(defaultClients)
@@ -29,7 +45,7 @@ func main() {
 		go func(n int) {
 			start := time.Now()
 
-			tcpClient, err := client.New(defaultAddress)
+			tcpClient, err := client.New(fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port))
 			if err != nil {
 				slog.With("error", err.Error()).Error("new client")
 				return
@@ -72,7 +88,7 @@ func main() {
 				return
 			}
 
-			fmt.Printf("%s\n", result)
+			fmt.Printf("%d\n%s\n\n", n, result)
 			slog.With("number", n, "seconds", time.Since(start).Seconds()).Debug("time elapsed")
 		}(i)
 	}

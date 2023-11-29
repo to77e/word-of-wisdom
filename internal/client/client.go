@@ -105,7 +105,7 @@ func (c *Client) getResponse(resp interface{}) error {
 		return fmt.Errorf("read tcp connection: %w\n", err)
 	}
 
-	m := message.New(buf[:n:n], validator.Get())
+	m := message.New(buf[:n:n], validator.GetInstance())
 	if err = m.UnmarshalData(resp); err != nil {
 		return fmt.Errorf("unmarshal data: %w\n", err)
 	}

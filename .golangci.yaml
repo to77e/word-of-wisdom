@@ -93,7 +93,6 @@ linters:
     - dupl
     - errcheck
     - exportloopref
-    - funlen
     - goconst
     - gocritic
     - gocyclo

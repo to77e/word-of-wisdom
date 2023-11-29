@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/to77e/word-of-wisdom/internal/config"
 	"github.com/to77e/word-of-wisdom/internal/message"
 	"github.com/to77e/word-of-wisdom/internal/proofofwork"
 	"github.com/to77e/word-of-wisdom/internal/wordofwisdom"
@@ -15,11 +16,9 @@ import (
 )
 
 const (
-	numberOfWorkers          = 2
-	defaultBufferSize        = 128
-	defaultTimeout           = time.Second
-	defaultConnectionTimeout = time.Second * 10
-	defaultDifficulty        = 1
+	numberOfWorkers   = 2
+	defaultBufferSize = 128
+	defaultTimeout    = time.Second
 )
 
 type ProofOfWorker interface {
@@ -53,9 +52,11 @@ func New(address string) (*Server, error) {
 }
 
 func (s *Server) Start() {
+	cfg := config.GetInstance()
+
 	s.wg.Add(numberOfWorkers)
-	go s.acceptConnections()
-	go s.handleConnections()
+	go s.acceptConnections(cfg.Server)
+	go s.handleConnections(cfg.ProofOfWork)
 }
 
 func (s *Server) Stop() {
@@ -80,7 +81,7 @@ func (s *Server) Stop() {
 	}
 }
 
-func (s *Server) acceptConnections() {
+func (s *Server) acceptConnections(cfg config.Server) {
 	// todo: gracefully stop accept connection
 	defer s.wg.Done()
 	for {
@@ -93,7 +94,7 @@ func (s *Server) acceptConnections() {
 				slog.With("error", err.Error()).Error("accept tcp connection")
 				return
 			}
-			if err = conn.SetDeadline(time.Now().Add(defaultConnectionTimeout)); err != nil {
+			if err = conn.SetDeadline(time.Now().Add(cfg.ConnectionTimeout)); err != nil {
 				slog.With("error", err.Error()).Error("set deadline")
 				return
 			}
@@ -102,14 +103,14 @@ func (s *Server) acceptConnections() {
 	}
 }
 
-func (s *Server) handleConnections() {
+func (s *Server) handleConnections(cfg config.ProofOfWork) {
 	defer s.wg.Done()
 	for {
 		select {
 		case <-s.quit:
 			return
 		case conn := <-s.connection:
-			pow := proofofwork.New(defaultDifficulty)
+			pow := proofofwork.New(cfg.Difficulty)
 			go s.handleConnection(conn, pow)
 		}
 	}
@@ -222,7 +223,7 @@ func (s *Server) getRequest(conn net.Conn, req interface{}) error {
 	}
 	slog.With("bytes", n, "remote_address", conn.RemoteAddr().String()).Info("tcp connection")
 
-	m := message.New(buf[:n:n], validator.Get())
+	m := message.New(buf[:n:n], validator.GetInstance())
 	if err = m.UnmarshalData(req); err != nil {
 		return fmt.Errorf("unmarshal data: %w\n", err)
 	}

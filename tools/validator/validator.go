@@ -13,7 +13,7 @@ func New() *validator.Validate {
 	return validate
 }
 
-func Get() *validator.Validate {
+func GetInstance() *validator.Validate {
 	if validate != nil {
 		return validate
 	}
